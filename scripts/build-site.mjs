@@ -26,8 +26,10 @@ export function within(parent, child) {
 export async function buildSite({ sourceDir = root, outDir = resolve(root, 'dist') } = {}) {
   const source = await realpath(sourceDir);
   const output = resolve(outDir);
-  // Never recursively replace the source tree, its ancestors, or a linked output.
-  if (within(output, source)) throw new Error('unsafe_site_output');
+  // Only the generated dist subtree may be replaced inside the source tree.
+  const unsafeOutput = destination => within(destination, source)
+    || (within(source, destination) && !within(resolve(source, 'dist'), destination));
+  if (unsafeOutput(output)) throw new Error('unsafe_site_output');
   const existing = await lstat(output).catch(error => {
     if (error.code !== 'ENOENT') throw error;
   });
@@ -49,7 +51,7 @@ export async function buildSite({ sourceDir = root, outDir = resolve(root, 'dist
   }
   await mkdir(dirname(output), { recursive: true });
   const resolvedOutput = resolve(await realpath(dirname(output)), relative(dirname(output), output));
-  if (within(resolvedOutput, source)) throw new Error('unsafe_site_output');
+  if (unsafeOutput(resolvedOutput)) throw new Error('unsafe_site_output');
   // All source validation and immutable-evidence checks finish before replacement.
   await rm(resolvedOutput, { recursive: true, force: true });
   await mkdir(resolvedOutput, { recursive: true });

@@ -103,6 +103,8 @@ Use `--help` for fixed usage text. The CLI accepts no canary values, URLs, comma
 
 The matcher checks exact full strings, URI representations, and UTF-8 byte sequences within canonical single-layer standard Base64 tokens. Base64 tokens must have canonical padding and zero padding bits; decoded envelopes can contain a full canary at any byte alignment. Base64url, recursive decoding, hashes, fragments, and alternative encodings are outside this contract.
 
+A Base64 token is a maximal run of `A-Z`, `a-z`, `0-9`, `+` and `/`, followed by its padding. Surrounding characters from that alphabet become part of the same token. Whitespace, quotes and query separators can delimit tokens; `/` cannot. URL path segments are not parsed separately, so a Base64 value in `/collect/<value>` may not be detected. Use the documented representations when constructing regression captures; a result without findings does not rule out disclosures in unsupported representations.
+
 All surfaces check `encodeURIComponent` representations. Only `telemetry_url` also checks `URLSearchParams` and WHATWG URL query serialization. Values that URL parsing would truncate are not registered as partial canaries. Unicode normalization and case folding are not performed.
 
 Supplied captures cannot establish what a process omitted, which destinations were monitored, or whether imported data is authentic. Keep those claims separate from canary findings and from the native benchmark's recorded settlement evidence.

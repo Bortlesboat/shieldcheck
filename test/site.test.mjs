@@ -130,19 +130,30 @@ test('changed recorded evidence fails the build before existing output is touche
   }
 });
 
-test('build refuses to replace the source, an ancestor, or a linked output directory', async t => {
+test('build preserves source subtrees and ancestors through direct and linked output paths', async t => {
   const directory = await temporary(t);
   const sourceDir = join(directory, 'source');
-  await mkdir(sourceDir);
+  await sourceFixture(sourceDir);
   await writeFile(join(sourceDir, 'sentinel'), 'keep');
-  for (const outDir of [sourceDir, directory]) {
+  await mkdir(join(sourceDir, 'native'));
+  await writeFile(join(sourceDir, 'native/main.rs'), 'native source');
+  const scanner = await readFile(join(sourceDir, 'src/scan.mjs'));
+  const alias = join(directory, 'source-alias');
+  await symlink(sourceDir, alias, 'junction');
+  for (const outDir of [sourceDir, directory, join(sourceDir, 'src'), join(sourceDir, 'native'), join(alias, 'native')]) {
     await assert.rejects(buildSite({ sourceDir, outDir }), /unsafe_site_output/);
     assert.equal(await readFile(join(sourceDir, 'sentinel'), 'utf8'), 'keep');
+    assert.deepEqual(await readFile(join(sourceDir, 'src/scan.mjs')), scanner);
+    assert.equal(await readFile(join(sourceDir, 'native/main.rs'), 'utf8'), 'native source');
   }
   const outDir = join(directory, 'dist');
   await symlink(sourceDir, outDir, 'junction');
   await assert.rejects(buildSite({ sourceDir, outDir }), /unsafe_site_output/);
   assert.equal(await readFile(join(sourceDir, 'sentinel'), 'utf8'), 'keep');
+  await buildSite({ sourceDir, outDir: join(sourceDir, 'dist') });
+  assert.deepEqual(await files(join(sourceDir, 'dist')), approved);
+  assert.deepEqual(await readFile(join(sourceDir, 'src/scan.mjs')), scanner);
+  assert.equal(await readFile(join(sourceDir, 'native/main.rs'), 'utf8'), 'native source');
 });
 
 test('page and module references resolve under a repository subpath with an early restrictive CSP', async t => {
