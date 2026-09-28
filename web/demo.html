@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; media-src 'self'; img-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Two minutes with ShieldCheck: local capture analysis and a real Zcash regtest checkout benchmark.">
+  <meta name="color-scheme" content="light">
+  <title>ShieldCheck — Two-minute demonstration</title>
+  <link rel="stylesheet" href="./web/styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#demo">Skip to demonstration</a>
+  <header class="site-header page-width">
+    <a class="brand" href="./">ShieldCheck</a>
+    <nav aria-label="Main navigation"><a href="./#analyzer">Try the analyzer</a><a href="https://github.com/Bortlesboat/shieldcheck" rel="noopener noreferrer" target="_blank">Source code ↗</a></nav>
+  </header>
+  <main id="demo" class="page-width demo-page">
+    <p class="eyebrow">ZECATHON 2026 · Core &amp; Tooling</p>
+    <h1>Two minutes at the<br><em>checkout boundary.</em></h1>
+    <p class="demo-intro">See leaky, corrected and incomplete captures, then inspect a real shielded payment and the difference between receipt validity and order authority.</p>
+    <video controls playsinline preload="metadata" poster="./web/demo-poster.png" aria-label="ShieldCheck two-minute demonstration">
+      <source src="./web/demo.mp4" type="video/mp4">
+      <track kind="captions" src="./web/demo.vtt" srclang="en" label="English" default>
+      Your browser cannot play this video. <a href="./web/demo.mp4">Download the MP4.</a>
+    </video>
+    <p class="demo-note">2:00 · Narrated walkthrough of captured product screens. Browser examples are synthetic. The native section shows the recorded September 28, 2026 regtest run with disposable funds.</p>
+    <p class="demo-links"><a class="button primary" href="./#analyzer">Try the analyzer <span aria-hidden="true">→</span></a><a href="./web/demo.mp4" download>Download video</a><a href="./web/demo.vtt" download>Captions</a></p>
+    <details class="demo-transcript"><summary>Read the full transcript</summary><p><strong>0:00–0:16</strong> A shielded payment can still end in a leaky checkout. ShieldCheck tests the application boundary around Zcash: what a checkout exposes, and whether a valid payment receipt gives the wrong person access.</p>
+<p><strong>0:16–0:37</strong> Start with this synthetic capture. The analyzer finds registered test values in standard output and telemetry, including URI encoding and a Base64 envelope. The report tells us which field appeared, where, and in which encoding. It leaves the values out.</p>
+<p><strong>0:37–0:49</strong> The corrected capture has no registered findings. This is a statement about the supplied capture, not a privacy certificate. The browser does not verify a payment or observe traffic you did not supply.</p>
+<p><strong>0:49–1:03</strong> Remove an observation and the result becomes incomplete. A leak already found stays visible. Missing evidence cannot turn into a clean bill of health. Analysis happens locally in this browser; your input is not uploaded.</p>
+<p><strong>1:03–1:23</strong> Now the native evidence. This recorded benchmark built a real fully shielded payment on an isolated Zcash regtest node. Zebra confirmed it at block one hundred and three. Twenty-four benchmark expectations passed. These are disposable test funds, and this is recorded evidence.</p>
+<p><strong>1:23–1:43</strong> Both checkouts verify the same payment. Copying the valid receipt wins the order in the deliberately vulnerable checkout. The corrected checkout denies that copy. It requires a separate order capability, gives the authorized holder access once, and rejects a replay. Payment validity and order authority are different checks.</p>
+<p><strong>1:43–2:00</strong> Use the same detector from the offline command line, supply captures from your test harness, or reproduce the native benchmark from source. ShieldCheck makes checkout regressions visible and produces a report you can share without sharing the secret values.</p></details>
+  </main>
+  <footer class="page-width"><p>ShieldCheck · ZECATHON 2026 · Core &amp; Tooling</p><p>Inspect the application boundary.</p></footer>
+</body>
+</html>

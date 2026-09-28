@@ -1,12 +1,14 @@
 {
   "name": "shieldcheck",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "A disposable regtest benchmark for shielded checkout privacy and authorization boundaries",
+  "description": "A browser-local disclosure analyzer and disposable Zcash regtest checkout benchmark",
   "type": "module",
   "engines": { "node": ">=24" },
   "scripts": {
     "test": "node --test",
-    "benchmark": "node src/cli.mjs"
+    "benchmark": "node src/cli.mjs",
+    "build:site": "node scripts/build-site.mjs",
+    "serve:site": "node scripts/serve-site.mjs"
   }
 }

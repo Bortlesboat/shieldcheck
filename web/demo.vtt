@@ -1,0 +1,90 @@
+WEBVTT
+
+00:00:00.350 --> 00:00:04.565
+A shielded payment can still end in a leaky checkout.
+
+00:00:04.565 --> 00:00:10.465
+ShieldCheck tests the application boundary around Zcash:
+what a checkout exposes, and whether a
+
+00:00:10.465 --> 00:00:13.837
+valid payment receipt gives the wrong person access.
+
+00:00:16.350 --> 00:00:22.966
+Start with this synthetic capture. The analyzer finds
+registered test values in standard output
+
+00:00:22.966 --> 00:00:27.218
+and telemetry, including URI encoding and a Base64
+envelope.
+
+00:00:27.218 --> 00:00:32.889
+The report tells us which field appeared, where, and in
+which encoding.
+
+00:00:32.889 --> 00:00:35.251
+It leaves the values out.
+
+00:00:37.350 --> 00:00:39.715
+The corrected capture has no registered findings.
+
+00:00:39.715 --> 00:00:43.770
+This is a statement about the supplied capture, not a
+privacy certificate.
+
+00:00:43.770 --> 00:00:48.500
+The browser does not verify a payment or observe traffic
+you did not supply.
+
+00:00:49.350 --> 00:00:52.356
+Remove an observation and the result becomes incomplete.
+
+00:00:52.356 --> 00:00:58.367
+A leak already found stays visible. Missing evidence
+cannot turn into a clean bill of health.
+
+00:00:58.367 --> 00:01:02.500
+Analysis happens locally in this browser; your input is
+not uploaded.
+
+00:01:03.350 --> 00:01:10.645
+Now the native evidence. This recorded benchmark built a
+real fully shielded payment on an isolated
+
+00:01:10.645 --> 00:01:16.117
+Zcash regtest node. Zebra confirmed it at block one
+hundred and three.
+
+00:01:16.117 --> 00:01:22.044
+Twenty-four benchmark expectations passed. These are
+disposable test funds, and this is recorded
+
+00:01:22.044 --> 00:01:22.500
+evidence.
+
+00:01:23.350 --> 00:01:29.733
+Both checkouts verify the same payment. Copying the valid
+receipt wins the order in the deliberately
+
+00:01:29.733 --> 00:01:32.925
+vulnerable checkout. The corrected checkout denies that
+copy.
+
+00:01:32.925 --> 00:01:38.909
+It requires a separate order capability, gives the
+authorized holder access once, and rejects a
+
+00:01:38.909 --> 00:01:42.500
+replay. Payment validity and order authority are different
+checks.
+
+00:01:43.350 --> 00:01:49.941
+Use the same detector from the offline command line,
+supply captures from your test harness, or
+
+00:01:49.941 --> 00:01:55.297
+reproduce the native benchmark from source. ShieldCheck
+makes checkout regressions visible and produces
+
+00:01:55.297 --> 00:01:59.416
+a report you can share without sharing the secret values.

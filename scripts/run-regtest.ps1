@@ -174,7 +174,7 @@ function Stop-OwnedBenchmark {
 try {
     if (-not $IsWindows) { throw 'This launcher requires Windows, PowerShell 7.4+ and WSL' }
     if ($RpcPort -gt 0 -and $RpcPort -lt 1024) { throw 'Use a non-privileged RPC port or zero for automatic allocation' }
-    $nodeExe = (Get-Command node -CommandType Application).Source
+    $nodeExe = @(Get-Command node -CommandType Application)[0].Source
     $cliPath = Join-Path $repo 'src/cli.mjs'
     $nativeExe = Join-Path $repo 'native/target/release/shieldcheck-native.exe'
     if (-not $NoBuild) {
