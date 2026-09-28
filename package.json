@@ -1,0 +1,12 @@
+{
+  "name": "shieldcheck",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A disposable regtest benchmark for shielded checkout privacy and authorization boundaries",
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "test": "node --test",
+    "benchmark": "node src/cli.mjs"
+  }
+}

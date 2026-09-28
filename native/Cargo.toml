@@ -1,0 +1,28 @@
+[package]
+name = "shieldcheck-native"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+publish = false
+description = "Disposable isolated Zcash regtest settlement and selected-output disclosure fixture"
+
+[dependencies]
+hex = "=0.4.3"
+incrementalmerkletree = { version = "=0.8.2", features = ["legacy-api"] }
+orchard = "=0.15.5"
+rand = "=0.8.6"
+reqwest = { version = "=0.12.28", default-features = false, features = ["blocking", "json"] }
+sapling = { package = "sapling-crypto", version = "=0.7.0" }
+secp256k1 = "=0.29.1"
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.149"
+zcash_note_encryption = "=0.4.2"
+zcash_primitives = { version = "=0.30.0", features = ["transparent-inputs", "non-standard-fees"] }
+zcash_protocol = { version = "=0.10.4", features = ["local-consensus"] }
+zcash_transparent = { version = "=0.10.0", features = ["transparent-inputs"] }
+jubjub = "=0.10.0"
+bls12_381 = "=0.8.0"
+
+[profile.release]
+strip = true

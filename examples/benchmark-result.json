@@ -1,0 +1,171 @@
+{
+  "schema": "shieldcheck-report/v1",
+  "createdAt": "2026-09-28T17:40:34.536Z",
+  "status": "completed",
+  "policy": "Order access requires the capability issued at creation; the receipt alone is transferable payment evidence.",
+  "native": {
+    "status": "verified",
+    "network": "regtest",
+    "pool": "ironwood",
+    "blockHeight": 103,
+    "confirmations": 1,
+    "shieldedOnly": true
+  },
+  "checks": [
+    {
+      "id": "native_settlement",
+      "status": "passed"
+    },
+    {
+      "id": "native_amount_mismatch",
+      "status": "passed"
+    },
+    {
+      "id": "native_memo_mismatch",
+      "status": "passed"
+    },
+    {
+      "id": "native_recipient_mismatch",
+      "status": "passed"
+    },
+    {
+      "id": "native_malformed",
+      "status": "passed"
+    },
+    {
+      "id": "native_zero_ock",
+      "status": "passed"
+    },
+    {
+      "id": "native_malformed_ock",
+      "status": "passed"
+    },
+    {
+      "id": "native_unknown_txid",
+      "status": "passed"
+    },
+    {
+      "id": "native_wrong_action",
+      "status": "passed"
+    },
+    {
+      "id": "native_wrong_network",
+      "status": "passed"
+    },
+    {
+      "id": "native_wrong_pool",
+      "status": "passed"
+    },
+    {
+      "id": "copied_receipt_vulnerable",
+      "status": "passed"
+    },
+    {
+      "id": "copied_receipt_displaces_owner",
+      "status": "passed"
+    },
+    {
+      "id": "copied_receipt_hardened",
+      "status": "passed"
+    },
+    {
+      "id": "wrong_capability",
+      "status": "passed"
+    },
+    {
+      "id": "legitimate_access",
+      "status": "passed"
+    },
+    {
+      "id": "concurrency",
+      "status": "passed"
+    },
+    {
+      "id": "replay",
+      "status": "passed"
+    },
+    {
+      "id": "wrong_order",
+      "status": "passed"
+    },
+    {
+      "id": "modified_disclosure",
+      "status": "passed"
+    },
+    {
+      "id": "malformed_receipt",
+      "status": "passed"
+    },
+    {
+      "id": "vulnerable_leaks",
+      "status": "passed"
+    },
+    {
+      "id": "hardened_no_leaks",
+      "status": "passed"
+    },
+    {
+      "id": "complete_capture",
+      "status": "passed"
+    }
+  ],
+  "fixtures": [
+    {
+      "mode": "vulnerable",
+      "fulfillments": 1,
+      "findings": [
+        {
+          "surface": "stdout",
+          "field": "memo",
+          "encoding": "raw"
+        },
+        {
+          "surface": "telemetry_url",
+          "field": "memo",
+          "encoding": "uri"
+        },
+        {
+          "surface": "telemetry_body",
+          "field": "receipt",
+          "encoding": "base64"
+        }
+      ],
+      "coverage": {
+        "status": "complete",
+        "reasons": [],
+        "observedRequests": 4,
+        "expectedRequests": 4
+      }
+    },
+    {
+      "mode": "hardened",
+      "fulfillments": 1,
+      "findings": [],
+      "coverage": {
+        "status": "complete",
+        "reasons": [],
+        "observedRequests": 10,
+        "expectedRequests": 10
+      }
+    }
+  ],
+  "coverage": {
+    "inspected": [
+      "Owned checkout child stdout and stderr",
+      "Designated telemetry sink URLs and request bodies",
+      "Registered canaries in raw, URI and Base64 representations"
+    ],
+    "uninspected": [
+      "Other network destinations and system processes",
+      "Browser storage, extensions and browser traffic",
+      "Unknown encodings, hashes and fragments",
+      "Third-party applications and production deployments"
+    ]
+  },
+  "limitations": [
+    "Deliberately vulnerable local fixture; no claim of a vulnerability in another project.",
+    "Disposable regtest settlement only; no mainnet or public testnet payment.",
+    "No privacy score or certification. A clean observation covers only the listed surfaces and encodings.",
+    "The selected-output receipt is a fixture format, not a payer identity proof or a standardized receipt protocol."
+  ]
+}

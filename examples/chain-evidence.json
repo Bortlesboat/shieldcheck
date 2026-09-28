@@ -1,0 +1,15 @@
+{
+  "schema": "shieldcheck-chain-evidence/v1",
+  "network": "regtest",
+  "nodeVersion": "6.4.2",
+  "genesis": "029f11d80ef9765602235e1bc9727e3eb6ba20839319f761fee920d63401e327",
+  "branchId": "37a5165b",
+  "blockHeight": 103,
+  "blockHash": "fa7a8de5b2217ddb4971ccb749d82817a25f973d26f5e570affa7d77c9c61196",
+  "transactionIds": [
+    "7f0bb9a709d132e8c25b75f6d832bbd40e4ae3b8023d7905a5e9fb5b743fae1e",
+    "822e5c1ff5e5c07dcb820768afb06f6661a8d4809be69011bbeaea23aed39876"
+  ],
+  "nativeSha256": "e5c8aaff1dd7f9144656dcff605ea06b389796b905889de4ddd274058eaafa25",
+  "reportSha256": "7d439ce6628b20390c82a55b51c441e42ac8781caf8aae652b34c422f5181d19"
+}
