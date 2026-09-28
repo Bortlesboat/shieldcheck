@@ -16,19 +16,26 @@ fn failure(failure: Failure) -> (u8, Value) {
 }
 
 fn read_input() -> contract::Result<Vec<u8>> {
+    read_input_from(std::io::stdin(), Duration::from_secs(5))
+}
+
+fn read_input_from(
+    input: impl Read + Send + 'static,
+    timeout: Duration,
+) -> contract::Result<Vec<u8>> {
     let (send, receive) = mpsc::sync_channel(1);
     std::thread::spawn(move || {
         let mut bytes = Vec::new();
-        let result = std::io::stdin()
+        let result = input
             .take(MAX_INPUT as u64 + 1)
             .read_to_end(&mut bytes)
             .map(|_| bytes)
-            .map_err(|_| Failure::Input);
+            .map_err(|_| Failure::Unavailable);
         let _ = send.send(result);
     });
     receive
-        .recv_timeout(Duration::from_secs(5))
-        .map_err(|_| Failure::Input)?
+        .recv_timeout(timeout)
+        .map_err(|_| Failure::Unavailable)?
 }
 
 fn run(command: &str) -> contract::Result<Value> {
@@ -64,4 +71,61 @@ fn main() -> ExitCode {
     };
     println!("{output}");
     ExitCode::from(code)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::{self, Cursor};
+
+    struct ErroringReader;
+
+    impl Read for ErroringReader {
+        fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+            Err(io::Error::other("test input failure"))
+        }
+    }
+
+    struct StalledReader(mpsc::Receiver<()>);
+
+    impl Read for StalledReader {
+        fn read(&mut self, _: &mut [u8]) -> io::Result<usize> {
+            self.0.recv().expect("test releases the reader");
+            Ok(0)
+        }
+    }
+
+    #[test]
+    fn input_read_error_is_unavailable() {
+        let error = read_input_from(ErroringReader, Duration::from_secs(1)).unwrap_err();
+        assert_eq!(
+            failure(error),
+            (1, json!({"status":"error","code":"native_unavailable"}))
+        );
+    }
+
+    #[test]
+    fn input_timeout_is_unavailable() {
+        let (release, wait) = mpsc::channel();
+        let result = read_input_from(StalledReader(wait), Duration::from_millis(1));
+        release.send(()).unwrap();
+        assert_eq!(
+            failure(result.unwrap_err()),
+            (1, json!({"status":"error","code":"native_unavailable"}))
+        );
+    }
+
+    #[test]
+    fn completed_malformed_and_oversized_inputs_remain_rejected() {
+        for input in [b"{}".to_vec(), vec![b' '; MAX_INPUT * 2]] {
+            let expected_length = input.len().min(MAX_INPUT + 1);
+            let bytes = read_input_from(Cursor::new(input), Duration::from_secs(1)).unwrap();
+            assert_eq!(bytes.len(), expected_length);
+            let error = contract::parse_pay(&bytes).err().expect("invalid input");
+            assert_eq!(
+                failure(error),
+                (2, json!({"status":"rejected","code":"invalid_input"}))
+            );
+        }
+    }
 }

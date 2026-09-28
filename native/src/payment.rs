@@ -163,35 +163,138 @@ fn recover_action<T>(
     Ok(())
 }
 
-/// Verifies node acceptance and selected payment content, never claimant identity.
-pub fn verify(input: VerifyInput) -> Result<Evidence> {
-    let rpc = Rpc::new(input.rpc_port)?;
-    let tip = rpc.isolated_height(false)?;
-    let raw = rpc.receipt_transaction(&input.receipt.txid)?;
-    let confirmed = raw
-        .get("confirmations")
-        .and_then(Value::as_u64)
-        .unwrap_or(0);
-    if confirmed == 0 {
-        return Err(Failure::Receipt);
-    }
-    let block_hash = raw
-        .get("blockhash")
-        .and_then(Value::as_str)
-        .ok_or(Failure::Receipt)?;
-    if !lower_hex(block_hash, 32) {
-        return Err(Failure::Unavailable);
-    }
+fn confirmed_transaction<'a>(raw: &'a Value, txid: &str) -> Result<(Transaction, u64, &'a str)> {
+    // A successful RPC envelope must contain the requested binary transaction
+    // before missing confirmation fields can mean a genuine mempool transaction.
+    raw.as_object().ok_or(Failure::Unavailable)?;
     let tx = decode_transaction(
         raw.get("hex")
             .and_then(Value::as_str)
             .ok_or(Failure::Unavailable)?,
     )?;
-    if tx.txid().to_string() != input.receipt.txid
-        || raw.get("txid").and_then(Value::as_str) != Some(input.receipt.txid.as_str())
-    {
+    if tx.txid().to_string() != txid || raw.get("txid").and_then(Value::as_str) != Some(txid) {
         return Err(Failure::Unavailable);
     }
+    let confirmations = raw
+        .get("confirmations")
+        .map(|v| v.as_u64().ok_or(Failure::Unavailable))
+        .transpose()?;
+    let height = raw
+        .get("height")
+        .map(|v| v.as_i64().ok_or(Failure::Unavailable))
+        .transpose()?;
+    let block_hash = raw
+        .get("blockhash")
+        .map(|v| {
+            v.as_str()
+                .filter(|s| lower_hex(s, 32))
+                .ok_or(Failure::Unavailable)
+        })
+        .transpose()?;
+
+    // Zebra 6.4.2 omits these three fields for mempool transactions and reports
+    // height -1 / confirmations 0 for a side-chain transaction. Null fields,
+    // invalid types and incomplete combinations are unavailable evidence.
+    match (confirmations, height, block_hash) {
+        (None, None, None) | (Some(0), None, None) | (Some(0), Some(-1), Some(_)) => {
+            Err(Failure::Receipt)
+        }
+        (Some(count), Some(height), Some(hash))
+            if (1..=u64::from(u32::MAX)).contains(&count)
+                && (1..=i64::from(u32::MAX)).contains(&height) =>
+        {
+            Ok((tx, count, hash))
+        }
+        _ => Err(Failure::Unavailable),
+    }
+}
+
+struct BlockEvidence<'a> {
+    height: u32,
+    confirmations: i64,
+    hash: &'a str,
+    transaction_ids: Vec<&'a str>,
+}
+
+fn block_evidence(block: &Value) -> Result<BlockEvidence<'_>> {
+    let height = block
+        .get("height")
+        .and_then(Value::as_u64)
+        .and_then(|n| u32::try_from(n).ok())
+        .ok_or(Failure::Unavailable)?;
+    let confirmations = block
+        .get("confirmations")
+        .and_then(Value::as_i64)
+        .filter(|n| (-1..=i64::from(u32::MAX)).contains(n))
+        .ok_or(Failure::Unavailable)?;
+    let hash = block
+        .get("hash")
+        .and_then(Value::as_str)
+        .filter(|s| lower_hex(s, 32))
+        .ok_or(Failure::Unavailable)?;
+    let transaction_ids = block
+        .get("tx")
+        .and_then(Value::as_array)
+        .filter(|ids| !ids.is_empty())
+        .ok_or(Failure::Unavailable)?
+        .iter()
+        .map(|id| {
+            id.as_str()
+                .filter(|s| lower_hex(s, 32))
+                .ok_or(Failure::Unavailable)
+        })
+        .collect::<Result<Vec<_>>>()?;
+    Ok(BlockEvidence {
+        height,
+        confirmations,
+        hash,
+        transaction_ids,
+    })
+}
+
+fn block_hash_result(value: &Value) -> Result<&str> {
+    value
+        .as_str()
+        .filter(|s| lower_hex(s, 32))
+        .ok_or(Failure::Unavailable)
+}
+
+fn check_inclusion(
+    block: &BlockEvidence<'_>,
+    canonical_hash: &str,
+    expected_hash: &str,
+    txid: &str,
+    tip: u32,
+    raw_height: u64,
+    raw_confirmations: u64,
+) -> Result<(u32, u32)> {
+    let confirmations = tip
+        .checked_sub(block.height)
+        .and_then(|n| n.checked_add(1))
+        .filter(|n| *n > 0)
+        .ok_or(Failure::Receipt)?;
+    if raw_height != u64::from(block.height) {
+        return Err(Failure::Unavailable);
+    }
+    if block.height == 0
+        || block.confirmations < 1
+        || raw_confirmations != u64::from(confirmations)
+        || block.confirmations != i64::from(confirmations)
+        || block.hash != expected_hash
+        || !block.transaction_ids.contains(&txid)
+        || canonical_hash != expected_hash
+    {
+        return Err(Failure::Receipt);
+    }
+    Ok((block.height, confirmations))
+}
+
+/// Verifies node acceptance and selected payment content, never claimant identity.
+pub fn verify(input: VerifyInput) -> Result<Evidence> {
+    let rpc = Rpc::new(input.rpc_port)?;
+    let tip = rpc.isolated_height(false)?;
+    let raw = rpc.receipt_transaction(&input.receipt.txid)?;
+    let (tx, confirmed, block_hash) = confirmed_transaction(&raw, &input.receipt.txid)?;
     if tx.version() != TxVersion::V6
         || tx.consensus_branch_id() != BranchId::Nu6_3
         || tx.transparent_bundle().is_some()
@@ -209,31 +312,21 @@ pub fn verify(input: VerifyInput) -> Result<Evidence> {
     recover_action(action, &input.receipt, &input.expected)?;
 
     let block = rpc.call("getblock", json!([block_hash, 1]))?;
-    let height = block
-        .get("height")
-        .and_then(Value::as_u64)
-        .and_then(|n| u32::try_from(n).ok())
-        .ok_or(Failure::Unavailable)?;
-    let confirmations = tip
-        .checked_sub(height)
-        .and_then(|n| n.checked_add(1))
-        .filter(|n| *n > 0)
-        .ok_or(Failure::Receipt)?;
-    if height == 0
-        || confirmed != u64::from(confirmations)
-        || block.get("confirmations").and_then(Value::as_u64) != Some(u64::from(confirmations))
-        || block.get("hash").and_then(Value::as_str) != Some(block_hash)
-        || !block
-            .get("tx")
-            .and_then(Value::as_array)
-            .is_some_and(|ids| {
-                ids.iter()
-                    .any(|id| id.as_str() == Some(input.receipt.txid.as_str()))
-            })
-        || rpc.call("getblockhash", json!([height]))?.as_str() != Some(block_hash)
-    {
+    let block = block_evidence(&block)?;
+    if block.confirmations < 1 || block.height == 0 || block.height > tip {
         return Err(Failure::Receipt);
     }
+    let canonical = rpc.call("getblockhash", json!([block.height]))?;
+    let canonical = block_hash_result(&canonical)?;
+    let (height, confirmations) = check_inclusion(
+        &block,
+        canonical,
+        block_hash,
+        &input.receipt.txid,
+        tip,
+        raw["height"].as_u64().ok_or(Failure::Unavailable)?,
+        confirmed,
+    )?;
 
     Ok(Evidence {
         network: "regtest",
@@ -460,6 +553,191 @@ mod tests {
         bundle::{BundleVersion, Flags},
         value::NoteValue,
     };
+
+    fn serialized_envelope() -> Value {
+        use zcash_primitives::transaction::{Authorized, TransactionData};
+        // A binary-serialized V6 transaction exercises envelope decoding only.
+        // It is not a valid funded payment or settlement evidence.
+        let tx = TransactionData::<Authorized>::from_parts_v6(
+            BranchId::Nu6_3,
+            0,
+            150.into(),
+            None,
+            None,
+            None,
+            None,
+        )
+        .freeze()
+        .unwrap();
+        let mut bytes = Vec::new();
+        tx.write(&mut bytes).unwrap();
+        json!({"txid":tx.txid().to_string(), "hex":hex::encode(bytes)})
+    }
+
+    fn complete_block() -> Value {
+        json!({"height":103, "confirmations":1, "hash":"ab".repeat(32),
+            "tx":["cd".repeat(32), "ef".repeat(32)]})
+    }
+
+    #[test]
+    fn every_canonical_block_field_must_be_complete_and_well_typed() {
+        for field in ["height", "confirmations", "hash", "tx"] {
+            let mut block = complete_block();
+            block.as_object_mut().unwrap().remove(field);
+            assert!(
+                matches!(block_evidence(&block), Err(Failure::Unavailable)),
+                "{field}"
+            );
+        }
+        for (field, invalid) in [
+            ("height", json!(-1)),
+            ("height", json!("103")),
+            ("confirmations", Value::Null),
+            ("confirmations", json!("1")),
+            ("confirmations", json!(-2)),
+            ("hash", json!(true)),
+            ("hash", json!("not a hash")),
+            ("tx", Value::Null),
+            ("tx", json!([])),
+            ("tx", json!(["cd".repeat(32), 1])),
+            ("tx", json!(["cd".repeat(32), "bad hash"])),
+        ] {
+            let mut block = complete_block();
+            block[field] = invalid;
+            assert!(
+                matches!(block_evidence(&block), Err(Failure::Unavailable)),
+                "{field}"
+            );
+        }
+    }
+
+    #[test]
+    fn malformed_height_lookup_hash_is_unavailable() {
+        for invalid in [
+            Value::Null,
+            json!({}),
+            json!(1),
+            json!(""),
+            json!("AB".repeat(32)),
+        ] {
+            assert!(matches!(
+                block_hash_result(&invalid),
+                Err(Failure::Unavailable)
+            ));
+        }
+    }
+
+    #[test]
+    fn well_formed_orphan_and_noncanonical_blocks_remain_receipt_rejections() {
+        let raw = complete_block();
+        let block = block_evidence(&raw).unwrap();
+        let expected_hash = "ab".repeat(32);
+        let txid = "cd".repeat(32);
+        assert_eq!(
+            check_inclusion(&block, &expected_hash, &expected_hash, &txid, 103, 103, 1),
+            Ok((103, 1))
+        );
+        assert_eq!(
+            check_inclusion(&block, &"00".repeat(32), &expected_hash, &txid, 103, 103, 1),
+            Err(Failure::Receipt)
+        );
+        assert_eq!(
+            check_inclusion(
+                &block,
+                &expected_hash,
+                &expected_hash,
+                &"00".repeat(32),
+                103,
+                103,
+                1
+            ),
+            Err(Failure::Receipt)
+        );
+        let mut orphan = raw.clone();
+        orphan["confirmations"] = json!(-1);
+        assert_eq!(
+            check_inclusion(
+                &block_evidence(&orphan).unwrap(),
+                &expected_hash,
+                &expected_hash,
+                &txid,
+                103,
+                103,
+                1
+            ),
+            Err(Failure::Receipt)
+        );
+        // A malformed transaction member cannot be hidden by a valid orphan status.
+        orphan["tx"] = json!(["cd".repeat(32), Value::Null]);
+        assert!(matches!(block_evidence(&orphan), Err(Failure::Unavailable)));
+    }
+
+    #[test]
+    fn malformed_successful_rpc_envelope_cannot_pass_an_unconfirmed_negative() {
+        let valid = serialized_envelope();
+        let txid = valid["txid"].as_str().unwrap();
+        for malformed in [
+            Value::Null,
+            json!("unexpected"),
+            json!({}),
+            json!({"confirmations":0}),
+            json!({"txid":txid}),
+            json!({"txid":txid,"hex":"invalid"}),
+        ] {
+            assert!(matches!(
+                confirmed_transaction(&malformed, txid),
+                Err(Failure::Unavailable)
+            ));
+        }
+        let mut wrong_id = valid.clone();
+        wrong_id["txid"] = json!("00".repeat(32));
+        assert!(matches!(
+            confirmed_transaction(&wrong_id, txid),
+            Err(Failure::Unavailable)
+        ));
+    }
+
+    #[test]
+    fn malformed_confirmation_metadata_is_unavailable() {
+        let valid = serialized_envelope();
+        let txid = valid["txid"].as_str().unwrap();
+        for malformed in [Value::Null, json!("1"), json!(-1), json!(1.5)] {
+            let mut raw = valid.clone();
+            raw["confirmations"] = malformed;
+            raw["blockhash"] = json!("ab".repeat(32));
+            raw["height"] = json!(1);
+            assert!(matches!(
+                confirmed_transaction(&raw, txid),
+                Err(Failure::Unavailable)
+            ));
+        }
+        let mut partial = valid.clone();
+        partial["confirmations"] = json!(1);
+        assert!(matches!(
+            confirmed_transaction(&partial, txid),
+            Err(Failure::Unavailable)
+        ));
+    }
+
+    #[test]
+    fn valid_mempool_and_side_chain_envelopes_remain_receipt_rejections() {
+        let mut raw = serialized_envelope();
+        let txid = raw["txid"].as_str().unwrap().to_owned();
+        assert!(matches!(
+            confirmed_transaction(&raw, &txid),
+            Err(Failure::Receipt)
+        ));
+        raw["confirmations"] = json!(0);
+        raw["height"] = json!(-1);
+        raw["blockhash"] = json!("ab".repeat(32));
+        assert!(matches!(
+            confirmed_transaction(&raw, &txid),
+            Err(Failure::Receipt)
+        ));
+        raw["confirmations"] = json!(1);
+        raw["height"] = json!(103);
+        assert!(confirmed_transaction(&raw, &txid).is_ok());
+    }
 
     #[test]
     fn real_ironwood_output_opening_checks_every_invoice_field() {
