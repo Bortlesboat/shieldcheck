@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self'; font-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; worker-src 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Inspect supplied checkout captures for disclosure of registered test values. Local browser analysis, redacted reports, and separate native Zcash regtest evidence.">
+  <meta name="color-scheme" content="light">
+  <title>ShieldCheck — Is the checkout private?</title>
+  <link rel="stylesheet" href="./web/styles.css">
+  <script type="module" src="./web/app.mjs"></script>
+</head>
+<body>
+  <a class="skip-link" href="#analyzer">Skip to analyzer</a>
+  <header class="site-header page-width">
+    <a class="brand" href="#top" aria-label="ShieldCheck home">
+      <svg width="28" height="32" viewBox="0 0 28 32" aria-hidden="true"><path d="M14 1 26 5v10c0 7-5 12-12 16C7 27 2 22 2 15V5Z" fill="currentColor"/><path d="m8 15 4 4 8-9" fill="none" stroke="#f4bd50" stroke-width="2.5"/></svg>
+      ShieldCheck
+    </a>
+    <nav aria-label="Main navigation">
+      <a href="#analyzer">Analyzer</a>
+      <a href="#evidence">Native evidence</a>
+      <a href="#reproduce">Reproduce</a>
+    </nav>
+  </header>
+
+  <main id="top" class="page-width">
+    <section class="intro" aria-labelledby="page-title">
+      <div>
+        <p class="eyebrow">Zcash developer tooling</p>
+        <h1 id="page-title">The payment is private.<br><em>Is the checkout?</em></h1>
+      </div>
+      <div class="intro-copy">
+        <p>Logs and telemetry can reveal what a shielded payment protects. Find registered test values in your supplied checkout captures.</p>
+        <p class="local-note"><span class="status-dot" aria-hidden="true"></span> Analysis stays in this browser.</p>
+      </div>
+    </section>
+
+    <section id="analyzer" class="analyzer" aria-labelledby="analyzer-title">
+      <div class="section-heading">
+        <div><p class="eyebrow">01 / Local analysis</p><h2 id="analyzer-title">Follow the data beyond the payment.</h2></div>
+        <a class="quiet-link" href="./docs/capture-contract.md">Capture format <span aria-hidden="true">↗</span></a>
+      </div>
+      <noscript><p class="notice">Enable JavaScript to run the local analyzer. The recorded native evidence below is available without it.</p></noscript>
+      <div class="inspector">
+        <div class="input-pane">
+          <fieldset class="preset-picker">
+            <legend>Start with a synthetic example</legend>
+            <div class="preset-options">
+              <label><input type="radio" name="preset" value="leaky" checked><span>Leaky</span></label>
+              <label><input type="radio" name="preset" value="corrected"><span>Corrected</span></label>
+              <label><input type="radio" name="preset" value="incomplete"><span>Incomplete</span></label>
+            </div>
+          </fieldset>
+          <p id="preset-description" class="input-description">Memo and receipt values appear in process output and telemetry. All required surfaces are supplied.</p>
+          <div class="input-actions">
+            <button id="run-button" class="button primary-button" type="button">Run local analysis <span aria-hidden="true">→</span></button>
+            <button id="reset-button" class="text-button" type="button">Reset</button>
+          </div>
+          <div class="editor-heading">
+            <label for="capture-input">Capture JSON</label>
+            <button id="import-button" class="text-button" type="button">Import JSON <span aria-hidden="true">↑</span></button>
+            <input id="capture-file" type="file" accept=".json,application/json" hidden>
+          </div>
+          <textarea id="capture-input" aria-describedby="input-hint input-state" spellcheck="false" autocomplete="off" autocapitalize="off" wrap="off" placeholder="Choose an example or import a capture JSON file."></textarea>
+          <div class="editor-meta"><span id="input-hint">UTF-8 JSON · 1 MiB maximum</span><span id="input-size">0 bytes</span></div>
+          <p id="input-state" class="input-state" role="status" aria-live="polite">Synthetic example ready. Run the analysis to inspect it.</p>
+        </div>
+
+        <section class="result-pane" aria-labelledby="result-heading">
+          <div class="pane-heading"><p class="eyebrow">Supplied-capture result</p><span id="result-tag" class="state-tag" data-tone="neutral">Ready</span></div>
+          <div id="result-summary" role="status" aria-live="polite" aria-atomic="true">
+            <h3 id="result-heading">See where test values appear.</h3>
+            <p id="result-description">Run the leaky example to find its memo and receipt in process output and telemetry.</p>
+          </div>
+          <ul id="coverage-reasons" class="coverage-reasons" hidden></ul>
+          <div id="findings-area" class="findings-area" hidden>
+            <table>
+              <caption id="findings-caption">Observed canary findings</caption>
+              <thead><tr><th scope="col">Field</th><th scope="col">Surface</th><th scope="col">Encoding</th></tr></thead>
+              <tbody id="findings-body"></tbody>
+            </table>
+          </div>
+          <p id="empty-findings" class="empty-findings" hidden></p>
+          <div class="result-boundary">
+            <dl>
+              <div><dt>Input provenance</dt><dd>Unverified</dd></div>
+              <div><dt>Capture completeness</dt><dd id="coverage-value">Not evaluated</dd></div>
+              <div><dt>Native settlement</dt><dd>Not evaluated</dd></div>
+            </dl>
+            <p>This checks registered values in supplied text. It does not observe your app, verify a payment, or establish complete capture. No findings is not a privacy certification.</p>
+          </div>
+          <button id="download-button" class="button download-button" type="button" disabled>Download redacted JSON <span aria-hidden="true">↓</span></button>
+          <p class="download-note">Only finding metadata and coverage status. No captured text or test values.</p>
+        </section>
+      </div>
+      <details class="analysis-limits">
+        <summary>What the analyzer checks</summary>
+        <div>
+          <p>Register full synthetic values for memo, receipt, outgoing cipher key, recipient, or order capability. Supply stdout, stderr, telemetry URL, and telemetry body text from your own test harness.</p>
+          <p>The shared detector checks raw strings, URI representations, and canonical single-layer Base64. It cannot find unknown values, fragments, hashes, recursive encodings, or unobserved traffic.</p>
+          <p>Up to 5 canaries and 4 captures. Each canary is limited to 4 KiB. Each capture retains at most 128 KiB; overflow makes the result incomplete and preserves findings in the retained prefix. The complete JSON input must fit within 1 MiB.</p>
+        </div>
+      </details>
+    </section>
+
+    <section id="evidence" class="evidence" aria-labelledby="evidence-title">
+      <div class="section-heading">
+        <div><p class="eyebrow">02 / Recorded native evidence</p><h2 id="evidence-title">Same payment. Different checkout policy.</h2></div>
+        <p class="record-date"><time datetime="2026-09-28T18:54:09.219Z">September 28, 2026</time><span>18:54 UTC · immutable recorded run</span></p>
+      </div>
+      <div class="evidence-intro">
+        <p>A real shielded payment on isolated Zcash regtest. Both fixtures verify the same payment. Only the corrected checkout requires the separate order capability before granting access.</p>
+        <p><strong>24 / 24 benchmark expectations met</strong><span>Ironwood pool · block 103 · one confirmation</span></p>
+      </div>
+      <div class="comparison-wrap">
+        <table class="comparison">
+          <caption class="visually-hidden">Recorded native fixture comparison</caption>
+          <thead><tr><th scope="col">Recorded observation</th><th scope="col">Vulnerable fixture<span>Deliberately planted failure</span></th><th scope="col">Corrected fixture<span>Separate order capability</span></th></tr></thead>
+          <tbody>
+            <tr><th scope="row">Native payment</th><td>Verified</td><td>Verified</td></tr>
+            <tr><th scope="row">Copied receipt claims the order</th><td class="finding-text">Granted</td><td class="control-text">Denied</td></tr>
+            <tr><th scope="row">Observed canary findings</th><td class="finding-text">4 field findings</td><td>0 findings in recorded capture</td></tr>
+            <tr><th scope="row">Authorized owner</th><td class="finding-text">Displaced by copied receipt</td><td class="control-text">Granted once; replay denied</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="evidence-links">
+        <a class="button evidence-button" href="./examples/benchmark-report.html" target="_blank" rel="noopener" aria-label="Open recorded native report in a new tab">Open recorded report <span aria-hidden="true">↗</span></a>
+        <a href="./examples/benchmark-result.json" download>Report JSON <span aria-hidden="true">↓</span></a>
+        <a href="./examples/chain-evidence.json" download>Chain evidence <span aria-hidden="true">↓</span></a>
+      </div>
+      <p class="evidence-limit">These are our own disposable fixtures, observed on their process output and designated loopback telemetry sink. The browser analyzer above does not rerun this benchmark or change its recorded result. A passing benchmark means the expected vulnerable behavior and corrected controls were observed.</p>
+      <details class="provenance">
+        <summary>Recorded implementation and integrity</summary>
+        <dl>
+          <div><dt>Implementation commit</dt><dd><code>21478fcc87de3c6dddf878f5c910cf5b4419fe9e</code></dd></div>
+          <div><dt>Report HTML · SHA-256</dt><dd><code>cf57f9e435154e8599bac0e6d64727c1324fcb23d9f7cc3e4d0b9ff153aa34e3</code></dd></div>
+          <div><dt>Report JSON · SHA-256</dt><dd><code>8c11eb8e6ce4c46f574e891dc5b95d90b6a778fbbf7b152156476578645e1e8e</code></dd></div>
+        </dl>
+        <p>The site build verifies and copies the original HTML, JSON, and chain evidence byte for byte. The chain evidence also pins the native binary hash.</p>
+      </details>
+    </section>
+
+    <section id="reproduce" class="reproduce" aria-labelledby="reproduce-title">
+      <div><p class="eyebrow">03 / Reproduce locally</p><h2 id="reproduce-title">Inspect the capture.<br>Then verify the native boundary.</h2></div>
+      <div class="reproduce-instructions">
+        <h3>Use the same detector offline</h3>
+        <p>From the source checkout, with Node.js 24 or later:</p>
+        <pre><code>node src/scan-cli.mjs --input examples/capture-input.json</code></pre>
+        <p><a href="./examples/capture-input.json" download>Download the synthetic capture</a> · <a href="./docs/capture-contract.md">Read the capture contract</a></p>
+        <h3>Rerun the native benchmark</h3>
+        <p>Use Windows, PowerShell 7.4+, Rust/Cargo, Node.js 24+, and Ubuntu 24.04 in WSL. The launcher creates an isolated node with disposable test funds.</p>
+        <pre><code>npm test
+pwsh -NoProfile -File ./scripts/run-regtest.ps1</code></pre>
+        <p>Open the new <code>reports/&lt;run&gt;/report.html</code>. Runtime data stays local. No wallet, faucet, or real funds are needed.</p>
+        <p><a href="./docs/benchmark.md">Coverage and trust model</a> · <a href="./docs/native-contract.md">Native interface</a></p>
+      </div>
+    </section>
+  </main>
+  <footer class="page-width"><p>ShieldCheck <span>·</span> ZECATHON 2026 · Core &amp; Tooling</p><p>Inspect the application boundary.</p></footer>
+</body>
+</html>
