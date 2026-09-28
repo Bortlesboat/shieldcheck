@@ -113,6 +113,36 @@ test('Base64 token matching rejects noncanonical padding and incomplete captured
   assert.deepEqual(capture.findings([{ name: 'memo', value }]), []);
 });
 
+test('UTF-8 canaries match raw, URI and canonical Base64 without accepting near matches', () => {
+  const value = 'private memo 雪 🛡️ café /+';
+  const canaries = [{ name: 'memo', value }];
+  for (let prefix = 0; prefix < 3; prefix++) {
+    for (let suffix = 0; suffix < 3; suffix++) {
+      const capture = new Capture('telemetry_body');
+      capture.append(`${value}|${encodeURIComponent(value)}|${Buffer.from(' '.repeat(prefix) + value + ' '.repeat(suffix)).toString('base64')}`);
+      assert.deepEqual(capture.findings(canaries).map(item => item.encoding), ['raw', 'uri', 'base64']);
+    }
+  }
+  for (const near of [value.slice(0, -1), value.replace('雪', '雨'), value.replace('café', 'cafe\u0301')]) {
+    const capture = new Capture('telemetry_body');
+    capture.append(`${near}|${encodeURIComponent(near)}|${Buffer.from(near).toString('base64')}`);
+    assert.deepEqual(capture.findings(canaries), []);
+  }
+});
+
+test('native capture overflow retains earlier chunks without changing its append lifecycle', () => {
+  const capture = new Capture('stdout', 8);
+  capture.append('memo');
+  capture.append('too large');
+  capture.append('x');
+  assert.equal(capture.bytes, 14);
+  assert.equal(capture.overflow, true);
+  assert.equal(capture.text(), 'memo');
+  assert.deepEqual(capture.findings([{ name: 'memo', value: 'memo' }]), [
+    { surface: 'stdout', field: 'memo', encoding: 'raw' },
+  ]);
+});
+
 test('overflow, dropped observations, missing completion and nonzero child exit are incomplete', () => {
   const good = { childReady: true, childFinished: true, exitCode: 0, timedOut: false, expectedRequests: 2, observedRequests: 2, droppedRequests: 0 };
   const capture = new Capture('stdout', 4);
