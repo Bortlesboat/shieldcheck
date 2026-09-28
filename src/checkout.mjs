@@ -1,6 +1,7 @@
 import http from 'node:http';
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
+import { claimProof } from './claim-proof.mjs';
 import { verifyPayment, validExpected, validReceipt } from './native.mjs';
 
 const randomHex = size => randomBytes(size).toString('hex');
@@ -87,7 +88,7 @@ export async function createCheckout(config, dependencies = {}) {
       if (order.fulfilled) return send(response, 409, { status: 'rejected', code: 'already_fulfilled', payment: 'verified' });
       if (config.mode === 'hardened') {
         const expires = order.challenges.get(body.challenge);
-        const expectedProof = createHmac('sha256', Buffer.from(order.capability, 'hex')).update(`shieldcheck-claim/v1\n${match[1]}\n${body.challenge}`).digest('hex');
+        const expectedProof = claimProof(order.capability, match[1], body.challenge);
         if (!expires || expires <= now() || !safeEqual(body.proof, expectedProof)) {
           return send(response, 403, { status: 'rejected', code: 'authorization_required', payment: 'verified' });
         }

@@ -25,12 +25,103 @@ $benchmarkProcess = $null
 $linuxNode = $null
 $linuxConfig = $null
 $benchmarkExit = $null
+$wslOperationsUnverified = @()
 $clock = [Diagnostics.Stopwatch]::StartNew()
 
-function Invoke-Wsl([string[]] $Arguments) {
-    $answer = & wsl.exe -d $Distribution -- @Arguments
-    if ($LASTEXITCODE -ne 0) { throw "WSL operation failed: $($Arguments[0])" }
-    return $answer
+function Invoke-OwnedClient {
+    param(
+        [Parameter(Mandatory)][string] $FilePath,
+        [Parameter(Mandatory)][AllowEmptyString()][string[]] $Arguments,
+        [ValidateRange(1, 300)][int] $TimeoutSeconds = 15
+    )
+    $client = [Diagnostics.Process]::new()
+    $client.StartInfo.FileName = $FilePath
+    $client.StartInfo.UseShellExecute = $false
+    $client.StartInfo.CreateNoWindow = $true
+    $client.StartInfo.WindowStyle = [Diagnostics.ProcessWindowStyle]::Hidden
+    $client.StartInfo.RedirectStandardOutput = $true
+    $client.StartInfo.RedirectStandardError = $true
+    $client.StartInfo.StandardOutputEncoding = [Text.UTF8Encoding]::new($false)
+    $client.StartInfo.StandardErrorEncoding = [Text.UTF8Encoding]::new($false)
+    foreach ($argument in $Arguments) { $client.StartInfo.ArgumentList.Add($argument) }
+    $cancel = [Threading.CancellationTokenSource]::new()
+    $started = $false
+    $completed = $false
+    $failure = $null
+    $clientId = $null
+    $startedAt = $null
+    $deadline = [Diagnostics.Stopwatch]::StartNew()
+    try {
+        if (-not $client.Start()) { throw 'Owned client could not start' }
+        $started = $true
+        $clientId = $client.Id
+        $startedAt = $client.StartTime.ToUniversalTime().ToString('o')
+        $stdout = $client.StandardOutput.ReadToEndAsync($cancel.Token)
+        $stderr = $client.StandardError.ReadToEndAsync($cancel.Token)
+        $remaining = [math]::Max(0, $TimeoutSeconds * 1000 - [int]$deadline.ElapsedMilliseconds)
+        if (-not $client.WaitForExit($remaining)) {
+            throw [TimeoutException]::new("Owned client exceeded its ${TimeoutSeconds}s deadline")
+        }
+        # A descendant can retain a pipe after the client exits. Capturing that
+        # pipe shares the original deadline; it must never wait indefinitely.
+        $remaining = [math]::Max(0, $TimeoutSeconds * 1000 - [int]$deadline.ElapsedMilliseconds)
+        $capture = [Threading.Tasks.Task]::WhenAll([Threading.Tasks.Task[]]@($stdout, $stderr))
+        if (-not $capture.Wait($remaining)) {
+            throw [TimeoutException]::new("Owned client output exceeded its ${TimeoutSeconds}s deadline")
+        }
+        $answer = [pscustomobject]@{
+            ExitCode = $client.ExitCode
+            Stdout = $stdout.GetAwaiter().GetResult()
+            Stderr = $stderr.GetAwaiter().GetResult()
+        }
+        $completed = $true
+        return $answer
+    } catch {
+        $failure = $_.Exception
+        throw
+    } finally {
+        $clientStopped = $false
+        if ($started) {
+            try {
+                # This retained Process owns the handle returned by Start.
+                # Never kill a process tree, distro, VM or WSL service here.
+                if (-not $client.HasExited) { $client.Kill($false) }
+                $clientStopped = $client.WaitForExit(5000)
+            } catch { $clientStopped = $false }
+        }
+        if ($null -ne $failure -and $started -and -not $completed) {
+            $failure.Data['OwnedClientCompletionUnverified'] = $true
+            $failure.Data['OwnedClientProcessId'] = $clientId
+            $failure.Data['OwnedClientStartedUtc'] = $startedAt
+            $failure.Data['OwnedClientStopped'] = $clientStopped
+        }
+        $cancel.Cancel()
+        if ($started) {
+            $client.StandardOutput.Dispose()
+            $client.StandardError.Dispose()
+        }
+        $client.Dispose()
+        $cancel.Dispose()
+    }
+}
+function Invoke-Wsl([string[]] $Arguments, [int] $TimeoutSeconds = 15) {
+    try {
+        $answer = Invoke-OwnedClient -FilePath @(Get-Command wsl.exe -CommandType Application)[0].Source `
+            -Arguments (@('-d', $Distribution, '--') + $Arguments) -TimeoutSeconds $TimeoutSeconds
+    } catch {
+        if ($_.Exception.Data['OwnedClientCompletionUnverified']) {
+            $script:wslOperationsUnverified += [ordered]@{
+                operation = $Arguments[0]
+                clientProcessId = $_.Exception.Data['OwnedClientProcessId']
+                clientStartedUtc = $_.Exception.Data['OwnedClientStartedUtc']
+                clientStopped = $_.Exception.Data['OwnedClientStopped']
+                linuxCompletionVerified = $false
+            }
+        }
+        throw
+    }
+    if ($answer.ExitCode -ne 0) { throw "WSL operation failed (exit $($answer.ExitCode)): $($Arguments[0])" }
+    return $answer.Stdout
 }
 function ConvertTo-LinuxPath([string] $Path) {
     return (Invoke-Wsl @('wslpath', '-a', $Path.Replace('\', '/'))).Trim()
@@ -114,7 +205,7 @@ try {
     }
     $ZebraArchive = [IO.Path]::GetFullPath($ZebraArchive)
     if ((Get-FileHash -LiteralPath $ZebraArchive -Algorithm SHA256).Hash.ToLowerInvariant() -cne $archiveSha256) { throw 'Node archive checksum mismatch' }
-    Invoke-Wsl @('tar', '-xzf', (ConvertTo-LinuxPath $ZebraArchive), '-C', (ConvertTo-LinuxPath $toolsDirectory)) | Out-Null
+    Invoke-Wsl -Arguments @('tar', '-xzf', (ConvertTo-LinuxPath $ZebraArchive), '-C', (ConvertTo-LinuxPath $toolsDirectory)) -TimeoutSeconds 120 | Out-Null
     $linuxNode = (ConvertTo-LinuxPath (Join-Path $toolsDirectory 'zebrad'))
     if ((Invoke-Wsl @($linuxNode, '--version')).Trim() -cne "zebrad $version") { throw 'Node version mismatch' }
     $linuxRuntime = ConvertTo-LinuxPath $runtime
@@ -194,9 +285,12 @@ cookie_dir = "$tomlRuntime/cookie"
     $cleanupErrors = @()
     try { Stop-OwnedBenchmark } catch { $cleanupErrors += $_.Exception.Message }
     try { Stop-OwnedNode } catch { $cleanupErrors += $_.Exception.Message }
+    if ($wslOperationsUnverified.Count -gt 0) {
+        $cleanupErrors += 'WSL helper completion is unverified; stopping its Windows client does not prove its Linux command stopped'
+    }
     if (Test-Path -LiteralPath $runtime -PathType Container) {
-        [ordered]@{run=$runId;benchmarkExit=$benchmarkExit;elapsedSeconds=[math]::Round($clock.Elapsed.TotalSeconds,2);cleanupComplete=($cleanupErrors.Count -eq 0)} |
-            ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runtime 'lifecycle.json') -Encoding utf8NoBOM
+        [ordered]@{run=$runId;benchmarkExit=$benchmarkExit;elapsedSeconds=[math]::Round($clock.Elapsed.TotalSeconds,2);cleanupComplete=($cleanupErrors.Count -eq 0);wslOperationsUnverified=@($wslOperationsUnverified)} |
+            ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $runtime 'lifecycle.json') -Encoding utf8NoBOM
     }
     if ($cleanupErrors.Count -gt 0) { throw ($cleanupErrors -join '; ') }
 }

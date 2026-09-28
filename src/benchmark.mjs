@@ -1,14 +1,14 @@
 import http from 'node:http';
 import { spawn } from 'node:child_process';
-import { createHmac, randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { claimProof } from './claim-proof.mjs';
 import { Capture, evaluateCoverage } from './coverage.mjs';
 import { createPayment, verifyPayment } from './native.mjs';
 import { CHECKS, publicReport } from './render.mjs';
 
 class Incomplete extends Error {}
 class Failed extends Error {}
-const proof = (capability, orderId, challenge) => createHmac('sha256', Buffer.from(capability, 'hex')).update(`shieldcheck-claim/v1\n${orderId}\n${challenge}`).digest('hex');
 
 async function post(url, path, body, headers = {}) {
   try {
@@ -56,7 +56,7 @@ async function telemetrySink() {
 
 async function checkoutChild(config, sinkCapture) {
   const stdout = new Capture('stdout'), stderr = new Capture('stderr');
-  const state = { childReady: false, childFinished: false, exitCode: null, timedOut: false, expectedRequests: config.mode === 'vulnerable' ? 4 : 10, observedRequests: 0, droppedRequests: 0 };
+  const state = { childReady: false, childFinished: false, exitCode: null, timedOut: false, expectedRequests: config.mode === 'vulnerable' ? 4 : 10 };
   const child = spawn(process.execPath, [fileURLToPath(new URL('./checkout.mjs', import.meta.url))], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
   let buffer = '', fulfillments = null, readyResolve, readyReject, closeResolve, stopping;
   const ready = new Promise((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
@@ -115,9 +115,8 @@ async function checkoutChild(config, sinkCapture) {
     url,
     finish,
     report(canaries) {
-      state.observedRequests = sinkCapture.requests;
-      state.droppedRequests = sinkCapture.dropped;
-      return { mode: config.mode, fulfillments, findings: captures.flatMap(capture => capture.findings(canaries)), coverage: evaluateCoverage(state, captures) };
+      const coverageState = { ...state, observedRequests: sinkCapture.requests, droppedRequests: sinkCapture.dropped };
+      return { mode: config.mode, fulfillments, findings: captures.flatMap(capture => capture.findings(canaries)), coverage: evaluateCoverage(coverageState, captures) };
     },
   };
 }
@@ -180,14 +179,14 @@ export async function runBenchmark({ native, rpcPort }) {
       const challengeResult = await request(child, `/orders/${order.orderId}/challenge`, {});
       const challenge = challengeResult.body.challenge;
       if (challengeResult.status !== 200 || !/^[0-9a-f]{64}$/.test(challenge)) throw new Incomplete();
-      const legitimate = { receipt, challenge, proof: proof(order.capability, order.orderId, challenge) };
+      const legitimate = { receipt, challenge, proof: claimProof(order.capability, order.orderId, challenge) };
       if (mode === 'vulnerable') {
         activeCheck = 'copied_receipt_displaces_owner';
         const displaced = await request(child, `/orders/${order.orderId}/claim`, legitimate);
         check(activeCheck, displaced.status === 409 && displaced.body.code === 'already_fulfilled' && displaced.body.payment === 'verified');
       } else {
         activeCheck = 'wrong_capability';
-        const wrong = await request(child, `/orders/${order.orderId}/claim`, { ...legitimate, proof: proof('00'.repeat(32), order.orderId, challenge) });
+        const wrong = await request(child, `/orders/${order.orderId}/claim`, { ...legitimate, proof: claimProof('00'.repeat(32), order.orderId, challenge) });
         check(activeCheck, wrong.status === 403 && wrong.body.code === 'authorization_required' && wrong.body.payment === 'verified');
         activeCheck = 'concurrency';
         const concurrent = await Promise.all([request(child, `/orders/${order.orderId}/claim`, legitimate), request(child, `/orders/${order.orderId}/claim`, legitimate)]);
