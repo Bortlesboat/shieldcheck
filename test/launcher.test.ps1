@@ -30,7 +30,7 @@ function Get-Timeout([scriptblock] $Action) {
 }
 
 $pwsh = (Get-Process -Id $PID).Path
-$node = (Get-Command node -CommandType Application).Source
+$node = @(Get-Command node -CommandType Application)[0].Source
 $scratch = Join-Path ([IO.Path]::GetTempPath()) ('shieldcheck-launcher-' + [guid]::NewGuid().ToString('N'))
 [IO.Directory]::CreateDirectory($scratch) | Out-Null
 $fixture = Join-Path $scratch 'client fixture.ps1'
