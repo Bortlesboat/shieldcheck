@@ -2,6 +2,8 @@
 
 **A valid shielded payment can still end in a leaky checkout.**
 
+[Try the live analyzer](https://bortlesboat.github.io/shieldcheck/) · [Watch the two-minute demo](https://bortlesboat.github.io/shieldcheck/demo.html)
+
 ShieldCheck checks the application boundary around a shielded payment. Its browser analyzer and offline CLI find registered synthetic test values in supplied captures, using the same disclosure detector as its native benchmark.
 
 The separate native benchmark reproduces that gap with a real Zcash regtest payment. It compares a deliberately vulnerable checkout with a corrected one, then produces a redacted report of settlement, receipt validation, order access and observed disclosures.

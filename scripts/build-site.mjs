@@ -10,6 +10,7 @@ export const SITE_FILES = Object.freeze([
   'examples/capture-input.json', 'examples/benchmark-report.html',
   'examples/benchmark-result.json', 'examples/chain-evidence.json',
   'docs/benchmark.md', 'docs/native-contract.md', 'docs/capture-contract.md',
+  'demo.html', 'web/demo.mp4', 'web/demo.vtt', 'web/demo-poster.png', 'docs/demo-script.md',
 ]);
 const evidenceHashes = Object.freeze({
   'examples/benchmark-report.html': 'cf57f9e435154e8599bac0e6d64727c1324fcb23d9f7cc3e4d0b9ff153aa34e3',
@@ -17,7 +18,7 @@ const evidenceHashes = Object.freeze({
   'examples/chain-evidence.json': '047d1bb44c3deba860b9837bd6831f4c4ea8d097195850ff5daa7603435b812b',
 });
 
-function within(parent, child) {
+export function within(parent, child) {
   const path = relative(parent, child);
   return !isAbsolute(path) && path !== '..' && !path.startsWith('../') && !path.startsWith('..\\');
 }
@@ -33,11 +34,13 @@ export async function buildSite({ sourceDir = root, outDir = resolve(root, 'dist
   if (existing && (!existing.isDirectory() || existing.isSymbolicLink())) throw new Error('unsafe_site_output');
   const assets = [];
   for (const name of SITE_FILES) {
-    const path = await realpath(resolve(source, name === 'index.html' ? 'web/index.html' : name));
+    const path = await realpath(resolve(source, ['index.html', 'demo.html'].includes(name) ? `web/${name}` : name));
     if (!within(source, path)) throw new Error('unsafe_site_source');
     const bytes = await readFile(path);
     if (evidenceHashes[name]) {
       if (createHash('sha256').update(bytes).digest('hex') !== evidenceHashes[name]) throw new Error('recorded_evidence_mismatch');
+      assets.push([name, bytes]);
+    } else if (['web/demo.mp4', 'web/demo-poster.png'].includes(name)) {
       assets.push([name, bytes]);
     } else {
       // Keep static output stable across Windows and Unix checkout line endings.

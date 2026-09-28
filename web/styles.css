@@ -216,3 +216,14 @@ footer span { margin-inline: 7px; }
   html { scroll-behavior: auto; }
   a, button, summary, textarea, .preset-options span { transition: none; }
 }
+
+.intro-links { display: flex; flex-wrap: wrap; gap: 7px; font-size: 12px; margin-top: 18px; }
+.demo-page { padding-block: 55px; }
+.demo-page h1 { max-width: 1000px; margin-bottom: 24px; }
+.demo-intro { max-width: 740px; margin-bottom: 32px; }
+.demo-page video { display: block; width: 100%; max-height: 76vh; background: #f5f5ed; border: 1px solid var(--line); }
+.demo-note { max-width: 950px; font-size: 13px; margin-block: 18px 25px; }
+.demo-links { display: flex; flex-wrap: wrap; align-items: center; gap: 24px; }
+.demo-transcript { margin-top: 36px; border-top: 1px solid var(--line); padding-top: 20px; }
+.demo-transcript p { max-width: 820px; line-height: 1.8; }
+.demo-transcript strong { margin-right: 8px; }

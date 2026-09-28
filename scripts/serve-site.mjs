@@ -1,12 +1,12 @@
 import { createServer } from 'node:http';
 import { readFile, realpath } from 'node:fs/promises';
-import { extname, isAbsolute, relative, resolve } from 'node:path';
+import { extname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { SITE_FILES } from './build-site.mjs';
+import { SITE_FILES, within } from './build-site.mjs';
 
 const root = fileURLToPath(new URL('../dist/', import.meta.url));
 const allowed = new Set([...SITE_FILES, '.nojekyll']);
-const types = { '.html': 'text/html', '.css': 'text/css', '.mjs': 'text/javascript', '.json': 'application/json', '.md': 'text/plain' };
+const types = { '.html': 'text/html', '.css': 'text/css', '.mjs': 'text/javascript', '.json': 'application/json', '.md': 'text/plain', '.mp4': 'video/mp4', '.vtt': 'text/vtt', '.png': 'image/png' };
 
 export function createSiteServer({ directory = root, basePath = '/' } = {}) {
   if (!/^\/(?:[A-Za-z0-9_-]+\/)*$/.test(basePath)) throw new Error('invalid_site_base_path');
@@ -27,10 +27,10 @@ export function createSiteServer({ directory = root, basePath = '/' } = {}) {
     try {
       const site = await realpath(directory);
       const target = await realpath(resolve(site, name));
-      const local = relative(site, target);
-      if (isAbsolute(local) || local === '..' || local.startsWith('../') || local.startsWith('..\\')) return send(404, 'Not found.');
+      if (!within(site, target)) return send(404, 'Not found.');
       const bytes = await readFile(target);
-      return send(200, bytes, { 'Content-Type': `${types[extname(name)] || 'text/plain'}; charset=utf-8`, 'Content-Length': bytes.length });
+      const type = types[extname(name)] || 'text/plain';
+      return send(200, bytes, { 'Content-Type': type.startsWith('video/') || type.startsWith('image/') ? type : `${type}; charset=utf-8`, 'Content-Length': bytes.length });
     } catch { return send(404, 'Not found.'); }
   });
 }

@@ -17,12 +17,22 @@ const approved = [
   'src/scan.mjs', 'src/disclosures.mjs', 'examples/capture-input.json',
   'examples/benchmark-report.html', 'examples/benchmark-result.json', 'examples/chain-evidence.json',
   'docs/benchmark.md', 'docs/native-contract.md', 'docs/capture-contract.md',
+  'demo.html', 'web/demo.mp4', 'web/demo.vtt', 'web/demo-poster.png', 'docs/demo-script.md',
 ].sort();
 const evidenceHashes = {
   'examples/benchmark-report.html': 'cf57f9e435154e8599bac0e6d64727c1324fcb23d9f7cc3e4d0b9ff153aa34e3',
   'examples/benchmark-result.json': '8c11eb8e6ce4c46f574e891dc5b95d90b6a778fbbf7b152156476578645e1e8e',
   'examples/chain-evidence.json': '047d1bb44c3deba860b9837bd6831f4c4ea8d097195850ff5daa7603435b812b',
 };
+
+test('published video and poster retain binary bytes and captions remain available', async t => {
+  const directory = await temporary(t);
+  await buildSite({ outDir: join(directory, 'dist') });
+  for (const path of ['web/demo.mp4', 'web/demo-poster.png']) {
+    assert.deepEqual(await readFile(join(directory, 'dist', path)), await readFile(join(root, path)));
+  }
+  assert.match(await readFile(join(directory, 'dist/web/demo.vtt'), 'utf8'), /^WEBVTT/);
+});
 
 async function temporary(t) {
   const directory = await mkdtemp(join(tmpdir(), 'shieldcheck-site-'));
@@ -41,7 +51,7 @@ async function files(directory, prefix = '') {
 
 async function sourceFixture(directory) {
   for (const path of approved.filter(path => path !== '.nojekyll')) {
-    const source = path === 'index.html' ? 'web/index.html' : path;
+    const source = ['index.html', 'demo.html'].includes(path) ? `web/${path}` : path;
     await mkdir(dirname(join(directory, source)), { recursive: true });
     await cp(join(root, source), join(directory, source));
   }
@@ -96,8 +106,8 @@ test('build is identical across mutable text line endings and repeated runs', as
   const first = join(directory, 'first/dist');
   const second = join(directory, 'second/dist');
   await buildSite({ sourceDir, outDir: first });
-  for (const path of approved.filter(path => path !== '.nojekyll' && !evidenceHashes[path])) {
-    const source = join(sourceDir, path === 'index.html' ? 'web/index.html' : path);
+  for (const path of approved.filter(path => path !== '.nojekyll' && !evidenceHashes[path] && !/\.(mp4|png)$/.test(path))) {
+    const source = join(sourceDir, ['index.html', 'demo.html'].includes(path) ? `web/${path}` : path);
     await writeFile(source, (await readFile(source, 'utf8')).replace(/\r?\n/g, '\r\n'));
   }
   await buildSite({ sourceDir, outDir: second });
@@ -152,6 +162,7 @@ test('page and module references resolve under a repository subpath with an earl
     urls.push(...[...source.matchAll(/from ['"]([^'"]+)['"]/g)].map(match => new URL(match[1], `${origin}/shieldcheck/${path}`)));
   }
   for (const url of urls) {
+    if (url.href === 'https://github.com/Bortlesboat/shieldcheck') continue;
     assert.equal(url.origin, origin);
     assert.ok(url.pathname.startsWith('/shieldcheck/'));
     const path = url.pathname.slice('/shieldcheck/'.length) || 'index.html';
