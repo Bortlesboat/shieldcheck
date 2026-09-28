@@ -23,7 +23,7 @@ Some products deliberately use transferable bearer receipts. That is a different
 | Order capability | Checkout claim endpoint | Payment memo, receipt, analytics and report |
 | Redacted verification facts | Local JSON and HTML report | No broader claim of universal privacy |
 
-Only the benchmark's loopback HTTP sink and its own checkout child's stdout/stderr are observed. Matching covers registered memo, receipt and order-capability canaries in raw, URI-encoded and Base64 forms. It does not inspect arbitrary network destinations, browsers, external analytics providers, hashes, custom encodings, encrypted exports or third-party applications.
+Only the benchmark's loopback HTTP sink and its own checkout child's stdout/stderr are observed. Matching covers registered memo, receipt and order-capability canaries in raw, URI-encoded and Base64 forms. URL matching includes query values serialized by WHATWG URL and URLSearchParams. Canonical standard Base64 tokens are decoded once within the capture limit, so a registered value inside a JSON envelope is still detected. It does not inspect arbitrary network destinations, browsers, external analytics providers, hashes, recursive encodings, Base64URL, wrapped tokens, custom encodings, encrypted exports or third-party applications.
 
 Missing observations, a child crash, capture overflow, timeout or native infrastructure error make the affected result incomplete. A leak already observed remains a finding even when later capture fails. A zero-finding complete capture means only that no registered canary appeared on the stated surfaces during that run.
 
@@ -35,9 +35,13 @@ The native fixture uses NU6.3's Ironwood pool and pinned current libraries. The 
 
 The checkout keeps orders in memory. It does not implement persistent accounts, secure production sessions, wallet custody, shipping, refunds or commerce recovery. Sharing the separate capability alongside the receipt transfers its authority; the check does not prove a human identity.
 
+Claim challenges expire after 30 seconds. Slow but successful verification calls can exhaust the benchmark's challenge window and fail its authorized-access control. Expired claims remain denied; a passing run is not a performance guarantee on another machine.
+
 ## Reproduction evidence
 
 Generated reports contain only allowlisted verification facts and findings. Runtime logs and node state stay under the ignored `.local/` directory. Reports are written to a new directory under ignored `reports/` by default. Keep raw runtime artifacts private; publish only reviewed redacted examples.
+
+The launcher and process cleanup are verified on Windows/WSL with non-detached children. Other-platform process containment is unverified. WSL helper calls have finite deadlines; a stopped Windows client does not establish that its Linux command stopped, so that uncertainty remains an incomplete cleanup result.
 
 A successful benchmark exit means its expected vulnerable findings, corrected controls and failure handling were observed. It does not mean that the deliberately vulnerable checkout passed its policy. The report must make that distinction visible.
 

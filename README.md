@@ -10,7 +10,9 @@ This is a local benchmark for our own fixtures. It is not a production checkout,
 
 [Open the recorded report](examples/benchmark-report.html) · [JSON result](examples/benchmark-result.json) · [Disposable chain evidence](examples/chain-evidence.json)
 
-The September 28 native run passed all 24 benchmark expectations at block 103: three planted disclosure findings, copied-receipt acceptance in the vulnerable fixture, and denial plus one-time authorized access in the corrected fixture. All 13 Node tests and nine Rust tests pass. Browser rendering has not been visually verified.
+The September 28 native run passed all 24 benchmark expectations at block 103: detected memo and receipt disclosures, copied-receipt acceptance in the vulnerable fixture, and denial plus one-time authorized access in the corrected fixture. All 22 Node tests, 18 Rust tests and six launcher controls pass. Browser rendering has not been visually verified.
+
+Recorded implementation: `21478fcc87de3c6dddf878f5c910cf5b4419fe9e`. The chain-evidence file pins the native binary and JSON report hashes for this run.
 
 ## Run
 
@@ -68,6 +70,7 @@ Read the [coverage and trust model](docs/benchmark.md) and [native interface](do
 
 ```powershell
 npm test
+pwsh -NoProfile -File ./test/launcher.test.ps1
 cargo test --locked --release --manifest-path native/Cargo.toml
 cargo fmt --manifest-path native/Cargo.toml -- --check
 cargo clippy --locked --manifest-path native/Cargo.toml --all-targets -- -D warnings

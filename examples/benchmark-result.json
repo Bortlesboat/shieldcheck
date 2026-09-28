@@ -1,6 +1,6 @@
 {
   "schema": "shieldcheck-report/v1",
-  "createdAt": "2026-09-28T17:40:34.536Z",
+  "createdAt": "2026-09-28T18:54:09.219Z",
   "status": "completed",
   "policy": "Order access requires the capability issued at creation; the receipt alone is transferable payment evidence.",
   "native": {
@@ -127,6 +127,11 @@
         {
           "surface": "telemetry_body",
           "field": "receipt",
+          "encoding": "base64"
+        },
+        {
+          "surface": "telemetry_body",
+          "field": "ock",
           "encoding": "base64"
         }
       ],
