@@ -4,6 +4,8 @@
 
 [Try the live analyzer](https://bortlesboat.github.io/shieldcheck/) · [Watch the two-minute demo](https://bortlesboat.github.io/shieldcheck/demo.html)
 
+[Review the evidence and try a developer workflow](docs/review-guide.md) · [Signed v0.2.0 release](https://github.com/Bortlesboat/shieldcheck/releases/tag/v0.2.0)
+
 ShieldCheck checks the application boundary around a shielded payment. Its browser analyzer and offline CLI find registered synthetic test values in supplied captures, using the same disclosure detector as its native benchmark.
 
 The separate native benchmark reproduces that gap with a real Zcash regtest payment. It compares a deliberately vulnerable checkout with a corrected one, then produces a redacted report of settlement, receipt validation, order access and observed disclosures.
@@ -126,6 +128,6 @@ The node must match the exact isolated regtest context in the native contract. T
 
 ## Project status
 
-ShieldCheck is new work for the 2026 ZECATHON Core & Tooling track. The local browser analyzer, offline capture CLI and native benchmark are available in this source tree. Public deployment and final event submission remain separate release steps until verified. External application integration and developer validation are unverified. No claim of an existing ecosystem vulnerability is made.
+ShieldCheck is new work for the 2026 ZECATHON Core & Tooling track. The browser analyzer and two-minute video are live, the source and signed v0.2.0 release are public, and the entry was submitted on September 28, 2026. External application integration and independent developer validation remain unverified. No claim of an existing ecosystem vulnerability is made.
 
 MIT licensed. Rust dependency versions and upstream licenses are recorded through `native/Cargo.lock` and the referenced upstream projects; Zebra remains separately licensed tooling.
